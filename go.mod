@@ -1,4 +1,4 @@
-module github.com/RedHatInsights/cloudwatch
+module github.com/EvanCasey13/cloudwatch-v2
 
 go 1.21
 
