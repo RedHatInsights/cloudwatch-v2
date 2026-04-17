@@ -1,22 +1,26 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"io"
 	"log"
 	"os"
 	"time"
-	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	"github.com/RedHatInsights/cloudwatch"
 	"github.com/pborman/uuid"
 )
 
 func main() {
-	sess := session.Must(session.NewSession())
+	cfg, err := config.LoadDefaultConfig(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	g := cloudwatch.NewGroup("test", cloudwatchlogs.New(sess))
+	g := cloudwatch.NewGroup("test", cloudwatchlogs.NewFromConfig(cfg))
 
 	stream := uuid.New()
 

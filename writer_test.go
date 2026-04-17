@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,7 +26,7 @@ func TestWriter(t *testing.T) {
 	}
 
 	c.On("PutLogEvents", &cloudwatchlogs.PutLogEventsInput{
-		LogEvents: []*cloudwatchlogs.InputLogEvent{
+		LogEvents: []types.InputLogEvent{
 			{Message: aws.String("Hello\n"), Timestamp: aws.Int64(1000)},
 			{Message: aws.String("World"), Timestamp: aws.Int64(1000)},
 		},
@@ -52,15 +53,15 @@ func TestWriter_Rejected(t *testing.T) {
 	}
 
 	c.On("PutLogEvents", &cloudwatchlogs.PutLogEventsInput{
-		LogEvents: []*cloudwatchlogs.InputLogEvent{
+		LogEvents: []types.InputLogEvent{
 			{Message: aws.String("Hello\n"), Timestamp: aws.Int64(1000)},
 			{Message: aws.String("World"), Timestamp: aws.Int64(1000)},
 		},
 		LogGroupName:  aws.String("group"),
 		LogStreamName: aws.String("1234"),
 	}).Return(&cloudwatchlogs.PutLogEventsOutput{
-		RejectedLogEventsInfo: &cloudwatchlogs.RejectedLogEventsInfo{
-			TooOldLogEventEndIndex: aws.Int64(2),
+		RejectedLogEventsInfo: &types.RejectedLogEventsInfo{
+			TooOldLogEventEndIndex: aws.Int32(2),
 		},
 	}, nil)
 
@@ -86,7 +87,7 @@ func TestWriter_NewLine(t *testing.T) {
 	}
 
 	c.On("PutLogEvents", &cloudwatchlogs.PutLogEventsInput{
-		LogEvents: []*cloudwatchlogs.InputLogEvent{
+		LogEvents: []types.InputLogEvent{
 			{Message: aws.String("Hello\n"), Timestamp: aws.Int64(1000)},
 		},
 		LogGroupName:  aws.String("group"),
@@ -112,7 +113,7 @@ func TestWriter_Close(t *testing.T) {
 	}
 
 	c.On("PutLogEvents", &cloudwatchlogs.PutLogEventsInput{
-		LogEvents: []*cloudwatchlogs.InputLogEvent{
+		LogEvents: []types.InputLogEvent{
 			{Message: aws.String("Hello\n"), Timestamp: aws.Int64(1000)},
 			{Message: aws.String("World"), Timestamp: aws.Int64(1000)},
 		},

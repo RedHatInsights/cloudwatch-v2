@@ -1,13 +1,14 @@
 package cloudwatch
 
 import (
+	"context"
 	"errors"
 	"io"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
 )
 
 // Throttling and limits from http://docs.aws.amazon.com/AmazonCloudWatch/latest/DeveloperGuide/cloudwatch_limits.html
@@ -28,20 +29,21 @@ var now = time.Now
 
 // client duck types the aws sdk client for testing.
 type client interface {
-	PutLogEvents(*cloudwatchlogs.PutLogEventsInput) (*cloudwatchlogs.PutLogEventsOutput, error)
-	CreateLogStream(*cloudwatchlogs.CreateLogStreamInput) (*cloudwatchlogs.CreateLogStreamOutput, error)
-	GetLogEvents(*cloudwatchlogs.GetLogEventsInput) (*cloudwatchlogs.GetLogEventsOutput, error)
+	PutLogEvents(ctx context.Context, params *cloudwatchlogs.PutLogEventsInput, optFns ...func(*cloudwatchlogs.Options)) (*cloudwatchlogs.PutLogEventsOutput, error)
+	CreateLogStream(ctx context.Context, params *cloudwatchlogs.CreateLogStreamInput, optFns ...func(*cloudwatchlogs.Options)) (*cloudwatchlogs.CreateLogStreamOutput, error)
+	GetLogEvents(ctx context.Context, params *cloudwatchlogs.GetLogEventsInput, optFns ...func(*cloudwatchlogs.Options)) (*cloudwatchlogs.GetLogEventsOutput, error)
+	DescribeLogStreams(ctx context.Context, params *cloudwatchlogs.DescribeLogStreamsInput, optFns ...func(*cloudwatchlogs.Options)) (*cloudwatchlogs.DescribeLogStreamsOutput, error)
 }
 
 // Group wraps a log stream group and provides factory methods for creating
 // readers and writers for streams.
 type Group struct {
 	group  string
-	client *cloudwatchlogs.CloudWatchLogs
+	client *cloudwatchlogs.Client
 }
 
 // NewGroup returns a new Group instance.
-func NewGroup(group string, client *cloudwatchlogs.CloudWatchLogs) *Group {
+func NewGroup(group string, client *cloudwatchlogs.Client) *Group {
 	return &Group{
 		group:  group,
 		client: client,
@@ -49,11 +51,11 @@ func NewGroup(group string, client *cloudwatchlogs.CloudWatchLogs) *Group {
 }
 
 // Existing uses an existing log group created previously
-func (g *Group) existing(stream string) (io.Writer, error) {
-	result, err := g.client.DescribeLogStreams(&cloudwatchlogs.DescribeLogStreamsInput{
+func (g *Group) existing(ctx context.Context, stream string) (io.Writer, error) {
+	result, err := g.client.DescribeLogStreams(ctx, &cloudwatchlogs.DescribeLogStreamsInput{
 		LogGroupName:        &g.group,
 		LogStreamNamePrefix: &stream,
-		OrderBy:             aws.String("LogStreamName"),
+		OrderBy:             types.OrderByLogStreamName,
 		Descending:          aws.Bool(true),
 	})
 	if err != nil {
@@ -72,16 +74,20 @@ func (g *Group) existing(stream string) (io.Writer, error) {
 
 // Create creates a log stream in the group and returns an io.Writer for it.
 func (g *Group) Create(stream string) (io.Writer, error) {
-	if _, err := g.client.CreateLogStream(&cloudwatchlogs.CreateLogStreamInput{
+	return g.CreateWithContext(context.Background(), stream)
+}
+
+// CreateWithContext creates a log stream in the group and returns an io.Writer for it.
+func (g *Group) CreateWithContext(ctx context.Context, stream string) (io.Writer, error) {
+	if _, err := g.client.CreateLogStream(ctx, &cloudwatchlogs.CreateLogStreamInput{
 		LogGroupName:  &g.group,
 		LogStreamName: &stream,
 	}); err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() != cloudwatchlogs.ErrCodeResourceAlreadyExistsException {
-				return nil, err
-			}
-			return g.existing(stream)
+		var alreadyExists *types.ResourceAlreadyExistsException
+		if errors.As(err, &alreadyExists) {
+			return g.existing(ctx, stream)
 		}
+		return nil, err
 	}
 
 	return NewWriter(g.group, stream, g.client), nil
