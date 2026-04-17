@@ -3,17 +3,19 @@ package cloudwatch
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
 )
 
 type RejectedLogEventsInfoError struct {
-	Info *cloudwatchlogs.RejectedLogEventsInfo
+	Info *types.RejectedLogEventsInfo
 }
 
 func (e *RejectedLogEventsInfoError) Error() string {
@@ -37,8 +39,8 @@ type Writer struct {
 	sync.Mutex // This protects calls to flush.
 }
 
-// NewWriterWithToken returns a new Writer to a new Log Stream
-func NewWriter(group, stream string, client *cloudwatchlogs.CloudWatchLogs) *Writer {
+// NewWriter returns a new Writer to a new Log Stream
+func NewWriter(group, stream string, client *cloudwatchlogs.Client) *Writer {
 	w := &Writer{
 		group:    aws.String(group),
 		stream:   aws.String(stream),
@@ -50,7 +52,7 @@ func NewWriter(group, stream string, client *cloudwatchlogs.CloudWatchLogs) *Wri
 }
 
 // NewWriterWithToken returns a new Writer that accepts a sequence token from an existing AWS Log Stream
-func NewWriterWithToken(group, stream string, sequenceToken *string, client *cloudwatchlogs.CloudWatchLogs) *Writer {
+func NewWriterWithToken(group, stream string, sequenceToken *string, client *cloudwatchlogs.Client) *Writer {
 	w := &Writer{
 		group:         aws.String(group),
 		stream:        aws.String(stream),
@@ -117,8 +119,8 @@ func (w *Writer) Flush() error {
 
 // flush flashes a slice of log events. This method should be called
 // sequentially to ensure that the sequence token is updated properly.
-func (w *Writer) flush(events []*cloudwatchlogs.InputLogEvent) error {
-	resp, err := w.client.PutLogEvents(&cloudwatchlogs.PutLogEventsInput{
+func (w *Writer) flush(events []types.InputLogEvent) error {
+	resp, err := w.client.PutLogEvents(context.Background(), &cloudwatchlogs.PutLogEventsInput{
 		LogEvents:     events,
 		LogGroupName:  w.group,
 		LogStreamName: w.stream,
@@ -162,7 +164,7 @@ func (w *Writer) buffer(b []byte) (int, error) {
 			continue
 		}
 
-		w.events.add(&cloudwatchlogs.InputLogEvent{
+		w.events.add(types.InputLogEvent{
 			Message:   aws.String(string(b)),
 			Timestamp: aws.Int64(now().UnixNano() / 1000000),
 		})
@@ -184,12 +186,12 @@ func (w *Writer) buffer(b []byte) (int, error) {
 // mutex.
 type eventsBuffer struct {
 	sync.Mutex
-	events []*cloudwatchlogs.InputLogEvent
+	events []types.InputLogEvent
 	// size of messages in bytes
 	eventsSize uint64
 }
 
-func (b *eventsBuffer) add(event *cloudwatchlogs.InputLogEvent) {
+func (b *eventsBuffer) add(event types.InputLogEvent) {
 	b.Lock()
 	defer b.Unlock()
 
@@ -197,7 +199,7 @@ func (b *eventsBuffer) add(event *cloudwatchlogs.InputLogEvent) {
 	b.eventsSize += uint64(len(*event.Message))
 }
 
-func (b *eventsBuffer) drain() []*cloudwatchlogs.InputLogEvent {
+func (b *eventsBuffer) drain() []types.InputLogEvent {
 	b.Lock()
 	defer b.Unlock()
 

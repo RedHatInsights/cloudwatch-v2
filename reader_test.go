@@ -6,8 +6,9 @@ import (
 	"io"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,7 +25,7 @@ func TestReader(t *testing.T) {
 		StartFromHead: aws.Bool(true),
 		LogStreamName: aws.String("1234"),
 	}).Once().Return(&cloudwatchlogs.GetLogEventsOutput{
-		Events: []*cloudwatchlogs.OutputLogEvent{
+		Events: []types.OutputLogEvent{
 			{Message: aws.String("Hello"), Timestamp: aws.Int64(1000)},
 		},
 	}, nil)
@@ -53,7 +54,7 @@ func TestReader_Buffering(t *testing.T) {
 		StartFromHead: aws.Bool(true),
 		LogStreamName: aws.String("1234"),
 	}).Once().Return(&cloudwatchlogs.GetLogEventsOutput{
-		Events: []*cloudwatchlogs.OutputLogEvent{
+		Events: []types.OutputLogEvent{
 			{Message: aws.String("Hello"), Timestamp: aws.Int64(1000)},
 		},
 	}, nil)
@@ -86,7 +87,7 @@ func TestReader_EndOfFile(t *testing.T) {
 		StartFromHead: aws.Bool(true),
 		LogStreamName: aws.String("1234"),
 	}).Once().Return(&cloudwatchlogs.GetLogEventsOutput{
-		Events: []*cloudwatchlogs.OutputLogEvent{
+		Events: []types.OutputLogEvent{
 			{Message: aws.String("Hello"), Timestamp: aws.Int64(1000)},
 		},
 		NextForwardToken: aws.String("next"),
@@ -98,7 +99,7 @@ func TestReader_EndOfFile(t *testing.T) {
 		StartFromHead: aws.Bool(true),
 		NextToken:     aws.String("next"),
 	}).Once().Return(&cloudwatchlogs.GetLogEventsOutput{
-		Events: []*cloudwatchlogs.OutputLogEvent{
+		Events: []types.OutputLogEvent{
 			{Message: aws.String("World"), Timestamp: aws.Int64(1000)},
 		},
 	}, nil)
@@ -109,7 +110,7 @@ func TestReader_EndOfFile(t *testing.T) {
 		StartFromHead: aws.Bool(true),
 		NextToken:     aws.String("next"),
 	}).Once().Return(&cloudwatchlogs.GetLogEventsOutput{
-		Events: []*cloudwatchlogs.OutputLogEvent{},
+		Events: []types.OutputLogEvent{},
 	}, nil)
 
 	err := r.read()
@@ -147,7 +148,7 @@ func TestReader_Err(t *testing.T) {
 		StartFromHead: aws.Bool(true),
 		LogStreamName: aws.String("1234"),
 	}).Once().Return(&cloudwatchlogs.GetLogEventsOutput{
-		Events: []*cloudwatchlogs.OutputLogEvent{
+		Events: []types.OutputLogEvent{
 			{Message: aws.String("Hello"), Timestamp: aws.Int64(1000)},
 		},
 	}, errBoom)
